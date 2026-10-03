@@ -18,4 +18,6 @@ export const config = {
   maxExcerptChars: 40_000,
   /** Phase 8 (agentic): hard cap on tool-call rounds. */
   maxAgentRounds: 6,
+  maxToolCallsPerRound: 4,
+  toolResultMaxChars: 6_000,
 };

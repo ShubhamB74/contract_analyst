@@ -51,14 +51,14 @@ export function getOrCreateConversation(docIds: string[]) {
 
 export function addMessage(conversationId: string, m: Omit<ChatMessage, "created_at">) {
   getDb()
-    .prepare("INSERT INTO messages (id,conversation_id,role,content,quotes_json,coverage_json,status) VALUES (?,?,?,?,?,?,?)")
-    .run(m.id, conversationId, m.role, m.content, JSON.stringify(m.quotes), JSON.stringify(m.coverage), m.status);
+    .prepare("INSERT INTO messages (id,conversation_id,role,content,quotes_json,coverage_json,status,steps_json) VALUES (?,?,?,?,?,?,?,?)")
+    .run(m.id, conversationId, m.role, m.content, JSON.stringify(m.quotes), JSON.stringify(m.coverage), m.status, JSON.stringify(m.steps ?? []));
 }
 
 export function listMessages(conversationId: string): ChatMessage[] {
   const rows = getDb().prepare("SELECT * FROM messages WHERE conversation_id=? ORDER BY rowid").all(conversationId) as any[];
   return rows.map((r) => ({
     id: r.id, role: r.role, content: r.content, status: r.status, created_at: r.created_at,
-    quotes: JSON.parse(r.quotes_json), coverage: JSON.parse(r.coverage_json),
+    quotes: JSON.parse(r.quotes_json), coverage: JSON.parse(r.coverage_json), steps: JSON.parse(r.steps_json ?? "[]"),
   }));
 }

@@ -6,6 +6,7 @@ import { docsBlock, excerptsBlock, MULTI_ADDENDUM, QA_SYSTEM, REDUCE_SYSTEM } fr
 import { uniqueLabels } from "@/lib/labels";
 import { processAnswer } from "@/lib/answer";
 import { coverageStatement, gatherExcerpts } from "@/lib/retrieve";
+import { runAgent } from "@/lib/agent";
 import type { ChatMessage, Coverage, StreamEvent } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -18,9 +19,9 @@ export function GET(req: Request) {
   return Response.json(listMessages(getOrCreateConversation(docs)));
 }
 
-/** POST { documentIds, question } -> NDJSON stream of StreamEvent */
+/** POST { documentIds, question, mode?: "agent" } -> NDJSON stream of StreamEvent */
 export async function POST(req: Request) {
-  const { documentIds, question } = (await req.json()) as { documentIds: string[]; question: string };
+  const { documentIds, question, mode } = (await req.json()) as { documentIds: string[]; question: string; mode?: "agent" | "standard" };
   const enc = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -52,58 +53,71 @@ export async function POST(req: Request) {
         }));
         addMessage(convId, { id: newId(), role: "user", content: question, quotes: [], coverage: [], status: "complete" });
 
-        // ── Choose strategy ─────────────────────────────────────────────────────────
-        const total = ready.reduce((n, d) => n + d.text.length, 0);
-        let coverage: Coverage[];
-        let messages: OpenAI.Chat.ChatCompletionMessageParam[];
-
-        if (total <= config.fullContextChars) {
-          // Small: whole text in one request. Coverage is trivially complete.
-          coverage = ready.map((d) => ({ docId: d.id, totalChunks: 1, readChunks: 1, complete: true }));
-          messages = [
-            { role: "system", content: QA_SYSTEM + (multi ? MULTI_ADDENDUM : "") },
-            ...history,
-            { role: "user", content: `${docsBlock(named.map((d) => ({ id: aliasOf[d.id], name: d.name, text: d.text })))}\n\nQuestion: ${question}` },
-          ];
-        } else {
-          // Large: map (per-section extraction + verification) then reduce (answer from excerpts).
-          send({ type: "status", text: "Large document. Reading it section by section…" });
-          const g = await gatherExcerpts({
-            docs: named, question, signal: req.signal,
-            onStatus: (text) => send({ type: "status", text }),
-          });
-          coverage = g.coverage;
-          const names = labels;
-          send({ type: "status", text: `Found ${g.excerpts.length} relevant passage${g.excerpts.length === 1 ? "" : "s"}. Writing answer…` });
-          messages = [
-            { role: "system", content: REDUCE_SYSTEM + (multi ? MULTI_ADDENDUM : "") },
-            ...history,
-            {
-              role: "user",
-              content: `${coverageStatement(coverage, names)}\n\n<excerpts>\n${excerptsBlock(g.excerpts.map((e) => ({ ...e, docId: aliasOf[e.docId] })))}\n</excerpts>\n\nQuestion: ${question}`,
-            },
-          ];
-        }
-
-        // ── Stream the answer ───────────────────────────────────────────────────────
         let raw = "";
         let status: ChatMessage["status"] = "complete";
-        try {
-          const llm = await getClient().chat.completions.create(
-            { model: config.ai.model, stream: true, temperature: 0, messages },
-            { signal: req.signal }
-          );
-          for await (const part of llm) {
-            const t = part.choices[0]?.delta?.content ?? "";
-            if (t) { raw += t; send({ type: "delta", text: t }); }
+        let coverage: Coverage[];
+        let steps: string[] | undefined;
+
+        if (mode === "agent") {
+          // ── Phase 8: the model researches through tools (capped loop, live steps) ──
+          const r = await runAgent({
+            client: getClient(),
+            docs: named.map((d) => ({ id: d.id, alias: aliasOf[d.id], name: d.name, text: d.text, pages: d.pages })),
+            question, history, signal: req.signal, emit: send,
+          });
+          raw = r.raw; coverage = r.coverage; steps = r.steps;
+          if (r.stoppedBy === "abort") status = "stopped";
+        } else {
+          // ── Choose strategy ─────────────────────────────────────────────────────────
+          const total = ready.reduce((n, d) => n + d.text.length, 0);
+          let messages: OpenAI.Chat.ChatCompletionMessageParam[];
+
+          if (total <= config.fullContextChars) {
+            // Small: whole text in one request. Coverage is trivially complete.
+            coverage = ready.map((d) => ({ docId: d.id, totalChunks: 1, readChunks: 1, complete: true }));
+            messages = [
+              { role: "system", content: QA_SYSTEM + (multi ? MULTI_ADDENDUM : "") },
+              ...history,
+              { role: "user", content: `${docsBlock(named.map((d) => ({ id: aliasOf[d.id], name: d.name, text: d.text })))}\n\nQuestion: ${question}` },
+            ];
+          } else {
+            // Large: map (per-section extraction + verification) then reduce (answer from excerpts).
+            send({ type: "status", text: "Large document. Reading it section by section…" });
+            const g = await gatherExcerpts({
+              docs: named, question, signal: req.signal,
+              onStatus: (text) => send({ type: "status", text }),
+            });
+            coverage = g.coverage;
+            const names = labels;
+            send({ type: "status", text: `Found ${g.excerpts.length} relevant passage${g.excerpts.length === 1 ? "" : "s"}. Writing answer…` });
+            messages = [
+              { role: "system", content: REDUCE_SYSTEM + (multi ? MULTI_ADDENDUM : "") },
+              ...history,
+              {
+                role: "user",
+                content: `${coverageStatement(coverage, names)}\n\n<excerpts>\n${excerptsBlock(g.excerpts.map((e) => ({ ...e, docId: aliasOf[e.docId] })))}\n</excerpts>\n\nQuestion: ${question}`,
+              },
+            ];
           }
-        } catch (e) {
-          if (req.signal.aborted) status = "stopped";
-          else throw e;
+
+          // ── Stream the answer ───────────────────────────────────────────────────────
+          try {
+            const llm = await getClient().chat.completions.create(
+              { model: config.ai.model, stream: true, temperature: 0, messages },
+              { signal: req.signal }
+            );
+            for await (const part of llm) {
+              const t = part.choices[0]?.delta?.content ?? "";
+              if (t) { raw += t; send({ type: "delta", text: t }); }
+            }
+          } catch (e) {
+            if (req.signal.aborted) status = "stopped";
+            else throw e;
+          }
         }
 
         const { content, quotes } = processAnswer(raw, ready, idOf);
-        const message: ChatMessage = { id: newId(), role: "assistant", content, quotes, coverage, status, created_at: new Date().toISOString() };
+        const message: ChatMessage = { id: newId(), role: "assistant", content, quotes, coverage, steps, status, created_at: new Date().toISOString() };
         addMessage(convId, message); // saved even when stopped
         send({ type: "final", message });
       } catch (e) {

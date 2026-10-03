@@ -40,6 +40,7 @@ export type ChatMessage = {
   content: string;             // assistant content uses [[q:N]] markers
   quotes: VerifiedQuote[];
   coverage: Coverage[];
+  steps?: string[];            // Phase 8: research steps the agent took
   status: "complete" | "stopped" | "error";
   created_at: string;
 };
@@ -47,6 +48,8 @@ export type ChatMessage = {
 /** NDJSON events streamed from /api/chat */
 export type StreamEvent =
   | { type: "delta"; text: string }
-  | { type: "status"; text: string }            // Phase 8: "Searching for termination..."
+  | { type: "status"; text: string }
+  | { type: "step"; id: number; text: string; state: "running" | "done" | "error" } // Phase 8: live agent activity
+  | { type: "reset" }                           // discard text streamed so far (it was a preamble to a tool call)
   | { type: "final"; message: ChatMessage }
   | { type: "error"; message: string };
