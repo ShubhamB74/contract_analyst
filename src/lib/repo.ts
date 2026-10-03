@@ -30,6 +30,7 @@ export function deleteDocument(id: string) {
   db.prepare("DELETE FROM documents WHERE id=?").run(id);
   // Conversations that include this doc are orphaned: remove them (messages cascade).
   db.prepare("DELETE FROM conversations WHERE doc_key LIKE ?").run(`%${id}%`);
+  db.prepare("DELETE FROM comparisons WHERE doc_a=? OR doc_b=?").run(id, id);
 }
 
 export function saveUpload(id: string, name: string, buf: Buffer) {

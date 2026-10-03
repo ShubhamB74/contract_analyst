@@ -33,7 +33,17 @@ CREATE TABLE IF NOT EXISTS messages (
   status TEXT NOT NULL DEFAULT 'complete',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
--- Phase 4/7 can add: chunks, comparisons, clauses tables here.
+-- Phase 7: older version (doc_a) vs newer version (doc_b).
+CREATE TABLE IF NOT EXISTS comparisons (
+  id TEXT PRIMARY KEY,
+  doc_a TEXT NOT NULL,
+  doc_b TEXT NOT NULL,
+  status TEXT NOT NULL,           -- running | done | failed
+  progress TEXT,
+  error TEXT,
+  result_json TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 const g = globalThis as unknown as { __db?: Database.Database };
@@ -45,6 +55,7 @@ export function getDb(): Database.Database {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.exec(SCHEMA);
+  db.prepare("UPDATE comparisons SET status='failed', error='The server restarted while this comparison was running. Start it again.' WHERE status='running'").run();
   // Phase 9 (background processing): on boot, mark stale 'processing' docs and re-queue them.
   g.__db = db;
   return db;

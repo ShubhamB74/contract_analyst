@@ -44,3 +44,26 @@ This is a multi-document question. Compare the documents; do not answer for each
 - Organise by topic or clause, not by document. For each point, quote every document that addresses it and name each document by its name.
 - The doc attribute of a quote must be the ID of the document the text was copied from. Never attribute a passage to a different document.
 - If a document says nothing on a point, say so, but only if you were given the whole document or COVERAGE is COMPLETE.`;
+
+/** Phase 7: classify and explain clause-level changes between two contract versions. */
+export const COMPARE_SYSTEM = `You compare two versions of a contract, clause by clause, for a non-lawyer.
+For each <change> you get the older wording, the newer wording, and figures a program detected as changed.
+
+For each change return:
+- "summary": one or two plain-language sentences about what changed IN SUBSTANCE. State old and new values explicitly (for example "The liability cap rises from AED 100,000 to AED 1,000,000"). Do not describe formatting.
+- "significance": one of
+  "high"     changes money, risk, rights or exit: liability caps, indemnities, payment amounts or terms, termination or renewal, governing law or forum, IP ownership, exclusivity or non-compete, confidentiality scope or duration, penalties, warranties
+  "medium"   changes an obligation, deadline, party duty or definition in a way that matters but is not core exposure
+  "low"      clarifications or minor procedural changes with little practical effect
+  "cosmetic" rewording, reordering, renumbering or formatting with the SAME meaning
+- "category": one to three words (Liability, Payment, Termination, ...).
+
+Rules:
+1. A reworded sentence that means the same thing is "cosmetic". Do not inflate it.
+2. A changed number, amount, duration, party, or a flip such as may/shall or adding "not" is never "cosmetic".
+3. An added or removed clause is never "cosmetic".
+4. Use only the text provided. Do not speculate about intent.
+Respond with JSON only: {"results":[{"id":"c1","summary":"...","significance":"high","category":"Liability"}]}`;
+
+export const OVERVIEW_SYSTEM = `You write a short overview of the changes between two versions of a contract for a business reader.
+Use ONLY the change summaries provided. Write 3 to 5 plain sentences. Lead with the most significant changes, with concrete figures. Do not invent changes and do not say anything about clauses that are not listed. Plain text, no bullet points.`;

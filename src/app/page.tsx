@@ -7,6 +7,8 @@ export default function Library() {
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [selected, setSelected] = useState<string[]>([]); // in click order
+  const [swap, setSwap] = useState(false);
+  const [comparing, setComparing] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -37,6 +39,24 @@ export default function Library() {
     if (!confirm("Delete this document and its chat history?")) return;
     await fetch(`/api/documents/${id}`, { method: "DELETE" });
     load();
+  }
+
+  // Exactly two selected: older = earlier upload (swappable), newer = the other.
+  const pair = (() => {
+    if (selected.length !== 2 || !docs) return null;
+    const d = selected.map((id) => docs.find((x) => x.id === id)).filter(Boolean) as DocumentRow[];
+    if (d.length !== 2) return null;
+    d.sort((x, y) => x.created_at.localeCompare(y.created_at));
+    return swap ? [d[1], d[0]] : d;
+  })();
+
+  async function compare() {
+    if (!pair) return;
+    setError(null); setComparing(true);
+    const r = await fetch("/api/comparisons", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ olderId: pair[0].id, newerId: pair[1].id }) });
+    const body = await r.json();
+    if (!r.ok) { setComparing(false); setError(body.error ?? "Could not start the comparison."); return; }
+    window.location.href = `/compare/${body.id}`;
   }
 
   const toggle = (id: string) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -105,7 +125,19 @@ export default function Library() {
               {selected.length} selected
               {selected.length >= MAX && <span className="text-mute"> (maximum {MAX})</span>}
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {pair && (
+                <>
+                  <span className="hidden text-sm text-mute md:inline">
+                    Older: <span className="text-ink">{pair[0].name}</span> → Newer: <span className="text-ink">{pair[1].name}</span>
+                  </span>
+                  <button onClick={() => setSwap((v) => !v)} className="text-sm text-accent underline">Swap</button>
+                  <button onClick={compare} disabled={comparing}
+                    className="rounded-md border border-ink px-4 py-2 text-sm font-medium disabled:opacity-50">
+                    {comparing ? "Starting…" : "Compare versions"}
+                  </button>
+                </>
+              )}
               <button onClick={() => setSelected([])} className="text-sm text-mute hover:text-ink">Clear</button>
               <a href={selected.length >= 2 ? `/ask?docs=${selected.join(",")}` : undefined} aria-disabled={selected.length < 2}
                 className={`rounded-md px-4 py-2 text-sm font-medium ${selected.length >= 2 ? "bg-ink text-white" : "pointer-events-none bg-line text-mute"}`}>
