@@ -64,7 +64,11 @@ export function Chat({ documentIds, docNames, onCite }: Props) {
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-5 overflow-y-auto p-4">
         {messages.length === 0 && streaming === null && (
-          <p className="text-mute">Ask something like “What is the liability cap?” or “How can either party terminate?”</p>
+          <p className="text-mute">
+            {documentIds.length > 1
+              ? "Ask one question across all selected documents, for example “How do the termination rights differ?”"
+              : "Ask something like “What is the liability cap?” or “How can either party terminate?”"}
+          </p>
         )}
         {messages.map((m) => <Bubble key={m.id} m={m} docNames={docNames} onCite={onCite} showDoc={documentIds.length > 1} />)}
         {streaming !== null && (

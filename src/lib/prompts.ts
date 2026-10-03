@@ -35,3 +35,12 @@ export function excerptsBlock(ex: { docId: string; docName: string; page: number
     .map((e) => `<excerpt doc="${e.docId}" name="${e.docName}"${e.page ? ` page="${e.page}"` : ""}>\n${e.text}\n</excerpt>`)
     .join("\n\n");
 }
+
+/** Phase 6: appended to the system prompt when more than one document is selected. */
+export const MULTI_ADDENDUM = `
+
+This is a multi-document question. Compare the documents; do not answer for each one separately.
+- Open with the direct comparison: what is the same and what differs.
+- Organise by topic or clause, not by document. For each point, quote every document that addresses it and name each document by its name.
+- The doc attribute of a quote must be the ID of the document the text was copied from. Never attribute a passage to a different document.
+- If a document says nothing on a point, say so, but only if you were given the whole document or COVERAGE is COMPLETE.`;

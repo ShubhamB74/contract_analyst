@@ -19,14 +19,16 @@ export const invalidateIndex = (docId: string) => indexCache.delete(docId);
 /**
  * Turns the raw model output (with <quote doc="ID">...</quote> tags) into display content
  * with [[q:N]] markers plus a verified-quotes list. Each quote is checked ONLY against the
- * document it claims to come from. Unknown doc id => unverified.
+ * document it claims to come from. Unknown doc id => unverified. `aliases` maps the short ids shown
+ * to the model (D1, D2…) back to real document ids.
  */
-export function processAnswer(raw: string, docs: DocForVerify[]) {
+export function processAnswer(raw: string, docs: DocForVerify[], aliases: Record<string, string> = {}) {
   const byId = new Map(docs.map((d) => [d.id, d]));
   const quotes: VerifiedQuote[] = [];
 
-  let content = raw.replace(QUOTE_TAG, (_m, docId: string, text: string) => {
+  let content = raw.replace(QUOTE_TAG, (_m, cited: string, text: string) => {
     const id = quotes.length;
+    const docId = aliases[cited.trim()] ?? cited.trim(); // prompt uses short aliases (D1, D2…); store real ids
     const doc = byId.get(docId);
     if (!doc) {
       quotes.push({ id, docId, text: text.trim(), status: "unverified", matches: [], reason: "Cites an unknown document." });

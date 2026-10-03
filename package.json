@@ -7,13 +7,15 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node scripts/copy-pdf-worker.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",
     "mammoth": "^1.8.0",
     "next": "^15.0.0",
     "openai": "^4.67.0",
+    "pdfjs-dist": "^4.10.38",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "unpdf": "^0.12.0"

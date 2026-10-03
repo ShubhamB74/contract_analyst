@@ -6,11 +6,14 @@ export default function Library() {
   const [docs, setDocs] = useState<DocumentRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]); // in click order
   const input = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/documents");
-    setDocs(await r.json());
+    const list = (await r.json()) as DocumentRow[];
+    setDocs(list);
+    setSelected((s) => s.filter((id) => list.some((d) => d.id === id && d.status === "ready")));
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -36,8 +39,11 @@ export default function Library() {
     load();
   }
 
+  const toggle = (id: string) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const MAX = 6;
+
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10">
+    <main className="mx-auto max-w-6xl px-4 pb-28 pt-10">
       <h1 className="text-2xl font-semibold tracking-tight">Your contracts</h1>
       <p className="mt-1 text-mute">Upload a PDF or Word contract, then ask questions. Answers cite the exact text.</p>
 
@@ -61,25 +67,54 @@ export default function Library() {
         {docs === null ? <p className="text-mute">Loading…</p>
          : docs.length === 0 ? <p className="text-mute">No documents yet. Upload one to get started.</p>
          : (
-          <ul className="divide-y divide-line rounded-lg border border-line bg-white">
-            {docs.map((d) => (
-              <li key={d.id} className="flex items-center justify-between gap-4 px-4 py-3">
-                <div className="min-w-0">
-                  {d.status === "ready"
-                    ? <a href={`/documents/${d.id}`} className="block truncate font-medium hover:underline">{d.name}</a>
-                    : <span className="block truncate font-medium">{d.name}</span>}
-                  <p className="text-sm text-mute">
-                    {d.status === "processing" && "Extracting text…"}
-                    {d.status === "ready" && `${d.page_count} page${d.page_count === 1 ? "" : "s"} · ${(d.char_count! / 1000).toFixed(0)}k characters`}
-                    {d.status === "failed" && <span className="text-red-700">{d.error}</span>}
-                  </p>
-                </div>
-                <button onClick={() => remove(d.id)} className="text-sm text-mute hover:text-red-700">Delete</button>
-              </li>
-            ))}
-          </ul>
+          <>
+            {docs.filter((d) => d.status === "ready").length > 1 && (
+              <p className="mb-2 text-sm text-mute">Tick two or more documents to ask one question across them.</p>
+            )}
+            <ul className="divide-y divide-line rounded-lg border border-line bg-white">
+              {docs.map((d) => {
+                const ready = d.status === "ready";
+                const checked = selected.includes(d.id);
+                return (
+                  <li key={d.id} className="flex items-center gap-3 px-4 py-3">
+                    <input type="checkbox" aria-label={`Select ${d.name}`} disabled={!ready || (!checked && selected.length >= MAX)}
+                      checked={checked} onChange={() => toggle(d.id)} className="h-4 w-4 accent-[#2B4C9B]" />
+                    <div className="min-w-0 flex-1">
+                      {ready
+                        ? <a href={`/documents/${d.id}`} className="block truncate font-medium hover:underline">{d.name}</a>
+                        : <span className="block truncate font-medium">{d.name}</span>}
+                      <p className="text-sm text-mute">
+                        {d.status === "processing" && "Extracting text…"}
+                        {ready && `${d.page_count} page${d.page_count === 1 ? "" : "s"}, ${(d.char_count! / 1000).toFixed(0)}k characters`}
+                        {d.status === "failed" && <span className="text-red-700">{d.error}</span>}
+                      </p>
+                    </div>
+                    <button onClick={() => remove(d.id)} className="text-sm text-mute hover:text-red-700">Delete</button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
       </section>
+
+      {selected.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-white/95 backdrop-blur">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+            <p className="text-sm">
+              {selected.length} selected
+              {selected.length >= MAX && <span className="text-mute"> (maximum {MAX})</span>}
+            </p>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setSelected([])} className="text-sm text-mute hover:text-ink">Clear</button>
+              <a href={selected.length >= 2 ? `/ask?docs=${selected.join(",")}` : undefined} aria-disabled={selected.length < 2}
+                className={`rounded-md px-4 py-2 text-sm font-medium ${selected.length >= 2 ? "bg-ink text-white" : "pointer-events-none bg-line text-mute"}`}>
+                Ask across {selected.length >= 2 ? selected.length : "2+"} documents
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

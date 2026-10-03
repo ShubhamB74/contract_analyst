@@ -8,3 +8,4 @@ data/*
 !data/.gitkeep
 *.tsbuildinfo
 next-env.d.ts
+public/pdf.worker.min.mjs

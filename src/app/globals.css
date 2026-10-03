@@ -7,3 +7,11 @@ body { @apply bg-paper text-ink font-sans antialiased; }
 :focus-visible { outline: 2px solid theme("colors.accent"); outline-offset: 2px; }
 mark.cite { background: #FFE58A; color: inherit; padding: 1px 0; border-radius: 2px; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* Citation highlights */
+.textLayer mark.cite { background: rgba(255, 200, 0, 0.5); color: transparent; border-radius: 2px; }
+.docx-html { font-family: var(--font-serif), Georgia, serif; font-size: 15px; line-height: 1.75; }
+.docx-html p { margin: 0 0 0.9em; }
+.docx-html h1, .docx-html h2, .docx-html h3 { font-weight: 600; margin: 1.2em 0 0.5em; }
+.docx-html table { border-collapse: collapse; margin: 1em 0; }
+.docx-html td, .docx-html th { border: 1px solid #DDE1E8; padding: 4px 8px; }
