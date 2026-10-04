@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { ChatMessage, Coverage, StreamEvent, VerifiedQuote } from "@/lib/types";
+import { segmentContent } from "@/lib/segments";
 
 type Props = {
   documentIds: string[];
@@ -112,15 +113,14 @@ export function Chat({ documentIds, docNames, onCite }: Props) {
 }
 
 function Bubble({ m, docNames, onCite, showDoc }: { m: ChatMessage; docNames: Record<string, string>; onCite: Props["onCite"]; showDoc: boolean }) {
-  if (m.role === "user") return <div className="ml-auto max-w-[85%] rounded-lg bg-ink px-3 py-2 text-sm text-white">{m.content}</div>;
+  if (m.role === "user") return <div className="ml-auto w-fit max-w-[85%] whitespace-pre-wrap break-words rounded-lg bg-ink px-3 py-2 text-sm text-white">{m.content}</div>;
   if (m.status === "error") return <p role="note" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{m.content}</p>;
-  const parts = m.content.split(/(\[\[q:\d+\]\])/g);
+  const segments = segmentContent(m.content);
   return (
     <div className="text-[15px] leading-6">
-      {parts.map((p, i) => {
-        const mm = p.match(/^\[\[q:(\d+)\]\]$/);
-        if (!mm) return <span key={i} className="whitespace-pre-wrap">{p}</span>;
-        const q = m.quotes[Number(mm[1])];
+      {segments.map((seg, i) => {
+        if (seg.type === "text") return <p key={i} className="whitespace-pre-wrap">{seg.text}</p>;
+        const q = m.quotes[seg.id];
         return q ? <QuoteChip key={i} q={q} docName={showDoc ? docNames[q.docId] : undefined} onCite={onCite} /> : null;
       })}
       {m.steps && m.steps.length > 0 && (
