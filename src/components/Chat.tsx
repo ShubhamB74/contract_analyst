@@ -20,6 +20,7 @@ export function Chat({ documentIds, docNames, onCite }: Props) {
   const [steps, setSteps] = useState<{ id: number; text: string; state: "running" | "done" | "error" }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
+  const tmpSeq = useRef(0); // unique React keys for optimistic user messages
   const bottom = useRef<HTMLDivElement>(null);
   const key = documentIds.join(",");
 
@@ -34,7 +35,7 @@ export function Chat({ documentIds, docNames, onCite }: Props) {
     const question = draft.trim();
     if (!question || streaming !== null) return;
     setDraft(""); setError(null); setStreaming(""); setStatusText(null); setSteps([]);
-    setMessages((m) => [...m, { id: "tmp", role: "user", content: question, quotes: [], coverage: [], status: "complete", created_at: "" }]);
+    setMessages((m) => [...m, { id: `tmp-${++tmpSeq.current}`, role: "user", content: question, quotes: [], coverage: [], status: "complete", created_at: "" }]);
 
     abort.current = new AbortController();
     try {
