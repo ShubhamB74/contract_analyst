@@ -57,7 +57,6 @@ export function getDb(): Database.Database {
   db.exec(SCHEMA);
   // Phase 8: older databases lack the column. CREATE IF NOT EXISTS won't add it, so migrate by hand.
   try { db.exec("ALTER TABLE messages ADD COLUMN steps_json TEXT NOT NULL DEFAULT '[]'"); } catch { /* already there */ }
-  db.prepare("UPDATE comparisons SET status='failed', error='The server restarted while this comparison was running. Start it again.' WHERE status='running'").run();
   // Phase 9 (background processing): on boot, mark stale 'processing' docs and re-queue them.
   g.__db = db;
   return db;

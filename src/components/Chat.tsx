@@ -113,6 +113,7 @@ export function Chat({ documentIds, docNames, onCite }: Props) {
 
 function Bubble({ m, docNames, onCite, showDoc }: { m: ChatMessage; docNames: Record<string, string>; onCite: Props["onCite"]; showDoc: boolean }) {
   if (m.role === "user") return <div className="ml-auto max-w-[85%] rounded-lg bg-ink px-3 py-2 text-sm text-white">{m.content}</div>;
+  if (m.status === "error") return <p role="note" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{m.content}</p>;
   const parts = m.content.split(/(\[\[q:\d+\]\])/g);
   return (
     <div className="text-[15px] leading-6">

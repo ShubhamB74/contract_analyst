@@ -9,6 +9,7 @@ export default function Library() {
   const [selected, setSelected] = useState<string[]>([]); // in click order
   const [swap, setSwap] = useState(false);
   const [comparing, setComparing] = useState(false);
+  const [aiOk, setAiOk] = useState(true);
   const input = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -18,7 +19,7 @@ export default function Library() {
     setSelected((s) => s.filter((id) => list.some((d) => d.id === id && d.status === "ready")));
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); fetch("/api/health").then((r) => r.json()).then((h) => setAiOk(h.aiConfigured)).catch(() => {}); }, [load]);
   // Poll while anything is processing so status is never a mystery.
   useEffect(() => {
     if (!docs?.some((d) => d.status === "processing")) return;
@@ -64,6 +65,11 @@ export default function Library() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 pb-28 pt-10">
+      {!aiOk && (
+        <p role="note" className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          No AI key is configured on the server, so chat answers are unavailable. Uploads, viewing and comparison (rule-based) still work. Set <code>AI_API_KEY</code> and restart.
+        </p>
+      )}
       <h1 className="text-2xl font-semibold tracking-tight">Your contracts</h1>
       <p className="mt-1 text-mute">Upload a PDF or Word contract, then ask questions. Answers cite the exact text.</p>
 

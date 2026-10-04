@@ -7,6 +7,7 @@ import { uniqueLabels } from "@/lib/labels";
 import { processAnswer } from "@/lib/answer";
 import { coverageStatement, gatherExcerpts } from "@/lib/retrieve";
 import { runAgent } from "@/lib/agent";
+import { rateLimited } from "@/lib/ratelimit";
 import type { ChatMessage, Coverage, StreamEvent } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -21,6 +22,8 @@ export function GET(req: Request) {
 
 /** POST { documentIds, question, mode?: "agent" } -> NDJSON stream of StreamEvent */
 export async function POST(req: Request) {
+  const limited = rateLimited(req, "chat", true);
+  if (limited) return limited;
   const { documentIds, question, mode } = (await req.json()) as { documentIds: string[]; question: string; mode?: "agent" | "standard" };
   const enc = new TextEncoder();
 
@@ -33,6 +36,7 @@ export async function POST(req: Request) {
       };
       const done = () => { if (open) { try { controller.close(); } catch {} open = false; } };
 
+      let convId: string | undefined;
       try {
         const docs = (documentIds ?? []).map(getDocumentFull);
         if (!question?.trim() || !docs.length || docs.some((d) => !d)) throw new Error("Pick at least one document and enter a question.");
@@ -46,8 +50,8 @@ export async function POST(req: Request) {
         const idOf = Object.fromEntries(ready.map((d, i) => [`D${i + 1}`, d.id]));
         const multi = ready.length > 1;
 
-        const convId = getOrCreateConversation(documentIds);
-        const history = listMessages(convId).slice(-8).map((m) => ({
+        convId = getOrCreateConversation(documentIds);
+        const history = listMessages(convId).filter((m) => m.status !== "error").slice(-8).map((m) => ({
           role: m.role as "user" | "assistant",
           content: m.content.replace(/\[\[q:\d+\]\]/g, ""),
         }));
@@ -121,7 +125,15 @@ export async function POST(req: Request) {
         addMessage(convId, message); // saved even when stopped
         send({ type: "final", message });
       } catch (e) {
-        if (!req.signal.aborted) send({ type: "error", message: (e as Error).message });
+        // Never leave a question without a visible outcome in the saved history.
+        const stopped = req.signal.aborted;
+        if (convId) {
+          addMessage(convId, {
+            id: newId(), role: "assistant", quotes: [], coverage: [], status: stopped ? "stopped" : "error",
+            content: stopped ? "Stopped before an answer was written." : `Couldn’t answer: ${(e as Error).message}`,
+          });
+        }
+        if (!stopped) send({ type: "error", message: (e as Error).message });
       } finally {
         done();
       }

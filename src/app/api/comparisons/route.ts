@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { getDocument, newId } from "@/lib/repo";
 import { runComparison } from "@/lib/compare";
+import { rateLimited } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 /** POST { olderId, newerId } -> 202 { id }. Poll GET /api/comparisons/:id. */
 export async function POST(req: Request) {
+  const limited = rateLimited(req, "compare");
+  if (limited) return limited;
   const { olderId, newerId } = (await req.json()) as { olderId?: string; newerId?: string };
   if (!olderId || !newerId || olderId === newerId) {
     return NextResponse.json({ error: "Choose two different documents to compare." }, { status: 400 });
