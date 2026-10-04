@@ -32,6 +32,8 @@ export type Coverage = {
   failedChunks?: number[];     // indexes of sections that could not be read
   complete: boolean;           // false => answer must NOT claim anything is absent
   note?: string;               // e.g. excerpt cap reached
+  targeted?: boolean;          // deliberately read only the most relevant sections (not a failure)
+  capped?: boolean;            // too many matching passages; some were dropped
 };
 
 export type ChatMessage = {

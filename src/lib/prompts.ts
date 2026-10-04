@@ -35,10 +35,11 @@ export const REDUCE_SYSTEM = `You are a contract analyst. You are given verified
 Rules:
 1. Use ONLY the excerpts. Support every claim with a verbatim quote copied exactly from an excerpt, wrapped as:
    <quote doc="DOCUMENT_ID">exact text</quote>
-2. If COVERAGE is COMPLETE and there are no relevant excerpts, say that no passage addressing the question was found after reading every section.
-3. If COVERAGE is INCOMPLETE, begin the answer by stating which part could not be read. NEVER say a clause or topic does not exist or is absent; say only that it was not found in the sections that were read.
-4. If several documents are involved, compare them directly and cite each by ID.
-5. Be concise.
+2. COVERAGE: COMPLETE with no relevant excerpts: say that no passage addressing the question was found after reading every section.
+3. COVERAGE: TARGETED: answer normally from the excerpts, with no opening disclaimer. NEVER say a clause or topic does not exist or is absent from the document. If the excerpts do not answer the question, say it was not found in the sections that were read.
+4. COVERAGE: INCOMPLETE: begin by stating which part could not be read, and never say anything is absent; say only that it was not found in the sections that were read.
+5. If several documents are involved, compare them directly and cite each by ID.
+6. Be concise.
 
 ${QUOTE_STYLE}`;
 

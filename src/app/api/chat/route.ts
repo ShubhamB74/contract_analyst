@@ -24,7 +24,7 @@ export function GET(req: Request) {
 export async function POST(req: Request) {
   const limited = rateLimited(req, "chat", true);
   if (limited) return limited;
-  const { documentIds, question, mode } = (await req.json()) as { documentIds: string[]; question: string; mode?: "agent" | "standard" };
+  const { documentIds, question, mode, fullRead } = (await req.json()) as { documentIds: string[]; question: string; mode?: "agent" | "standard"; fullRead?: boolean };
   const enc = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -86,10 +86,11 @@ export async function POST(req: Request) {
             ];
           } else {
             // Large: map (per-section extraction + verification) then reduce (answer from excerpts).
-            send({ type: "status", text: "Large document. Reading it section by section…" });
+            send({ type: "status", text: fullRead ? "Reading every section…" : "Large document. Finding the most relevant sections…" });
             const g = await gatherExcerpts({
               docs: named, question, signal: req.signal,
               onStatus: (text) => send({ type: "status", text }),
+              strategy: fullRead ? "full" : "relevant",
             });
             coverage = g.coverage;
             const names = labels;

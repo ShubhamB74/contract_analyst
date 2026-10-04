@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMessage, Coverage, StreamEvent, VerifiedQuote } from "@/lib/types";
 import { segmentContent } from "@/lib/segments";
+import { coverageKind } from "@/lib/coverage";
 
 type Props = {
   documentIds: string[];
@@ -31,17 +32,18 @@ export function Chat({ documentIds, docNames, onCite }: Props) {
   const toggleResearch = (v: boolean) => { setResearch(v); try { localStorage.setItem("research", v ? "1" : "0"); } catch { /* ignore */ } };
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, streaming]);
 
-  async function ask() {
-    const question = draft.trim();
+  async function ask(override?: { question: string; fullRead: boolean }) {
+    const question = override?.question ?? draft.trim();
     if (!question || streaming !== null) return;
-    setDraft(""); setError(null); setStreaming(""); setStatusText(null); setSteps([]);
+    if (!override) setDraft("");
+    setError(null); setStreaming(""); setStatusText(null); setSteps([]);
     setMessages((m) => [...m, { id: `tmp-${++tmpSeq.current}`, role: "user", content: question, quotes: [], coverage: [], status: "complete", created_at: "" }]);
 
     abort.current = new AbortController();
     try {
       const res = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ documentIds, question, mode: research ? "agent" : "standard" }), signal: abort.current.signal,
+        body: JSON.stringify({ documentIds, question, mode: research ? "agent" : "standard", fullRead: override?.fullRead }), signal: abort.current.signal,
       });
       const reader = res.body!.getReader();
       const dec = new TextDecoder(); let buf = ""; let acc = "";
@@ -78,7 +80,10 @@ export function Chat({ documentIds, docNames, onCite }: Props) {
               : "Ask something like “What is the liability cap?” or “How can either party terminate?”"}
           </p>
         )}
-        {messages.map((m) => <Bubble key={m.id} m={m} docNames={docNames} onCite={onCite} showDoc={documentIds.length > 1} />)}
+        {messages.map((m, i) => (
+          <Bubble key={m.id} m={m} docNames={docNames} onCite={onCite} showDoc={documentIds.length > 1}
+            onReadAll={() => { const q = messages[i - 1]; if (q?.role === "user") ask({ question: q.content, fullRead: true }); }} />
+        ))}
         {streaming !== null && steps.length > 0 && (
           <ol className="space-y-1 rounded-md border border-line bg-white px-3 py-2 text-sm" aria-live="polite" aria-label="Research steps">
             {steps.map((st) => (
@@ -106,14 +111,14 @@ export function Chat({ documentIds, docNames, onCite }: Props) {
           className="flex-1 resize-none rounded-md border border-line px-3 py-2 text-sm" />
         {streaming !== null
           ? <button onClick={() => abort.current?.abort()} className="rounded-md border border-ink px-4 text-sm font-medium">Stop</button>
-          : <button onClick={ask} disabled={!draft.trim()} className="rounded-md bg-ink px-4 text-sm font-medium text-white disabled:opacity-40">Ask</button>}
+          : <button onClick={() => ask()} disabled={!draft.trim()} className="rounded-md bg-ink px-4 text-sm font-medium text-white disabled:opacity-40">Ask</button>}
       </div>
       </div>
     </div>
   );
 }
 
-function Bubble({ m, docNames, onCite, showDoc }: { m: ChatMessage; docNames: Record<string, string>; onCite: Props["onCite"]; showDoc: boolean }) {
+function Bubble({ m, docNames, onCite, showDoc, onReadAll }: { m: ChatMessage; docNames: Record<string, string>; onCite: Props["onCite"]; showDoc: boolean; onReadAll: () => void }) {
   if (m.role === "user") return <div className="ml-auto w-fit max-w-[85%] whitespace-pre-wrap break-words rounded-lg bg-ink px-3 py-2 text-sm text-white">{m.content}</div>;
   if (m.status === "error") return <p role="note" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{m.content}</p>;
   const segments = segmentContent(m.content);
@@ -130,7 +135,7 @@ function Bubble({ m, docNames, onCite, showDoc }: { m: ChatMessage; docNames: Re
           <ol className="mt-1 list-inside list-decimal space-y-0.5 text-mute">{m.steps.map((x, i) => <li key={i}>{x}</li>)}</ol>
         </details>
       )}
-      <CoverageNote coverage={m.coverage} />
+      <CoverageNote coverage={m.coverage} onReadAll={onReadAll} />
       {m.status === "stopped" && <p className="mt-1 text-xs text-mute">Stopped. Partial answer kept.</p>}
     </div>
   );
@@ -153,17 +158,31 @@ function QuoteChip({ q, docName, onCite }: { q: VerifiedQuote; docName?: string;
   );
 }
 
-function CoverageNote({ coverage }: { coverage: Coverage[] }) {
-  const partial = coverage.filter((c) => !c.complete);
-  if (partial.length) {
+function CoverageNote({ coverage, onReadAll }: { coverage: Coverage[]; onReadAll: () => void }) {
+  const kind = coverageKind(coverage);
+  const incomplete = coverage.filter((c) => !c.complete);
+  const part = (c: Coverage) => `${c.readChunks} of ${c.totalChunks} sections${c.note ? ` (${c.note})` : ""}`;
+
+  // Hard partial: a section failed to read, or passages were dropped. The answer may be missing things.
+  if (kind === "hard") {
     return (
       <p role="note" className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-        Partial read. {partial.map((c) => `${c.readChunks} of ${c.totalChunks} sections were read${c.note ? ` (${c.note})` : ""}`).join("; ")}.
-        Treat “not found” as “not found in the sections read”, not as proof a clause is absent.
+        Partial read. {incomplete.map((c) => `${part(c)} were read`).join("; ")}.
+        Treat “not found” as “not found in the sections read”, not as proof a clause is absent.{" "}
+        <button onClick={onReadAll} className="font-medium underline">Read every section</button>
       </p>
     );
   }
-  const big = coverage.filter((c) => c.totalChunks > 1);
-  if (!big.length) return null;
-  return <p className="mt-2 text-xs text-mute">Read all {big.map((c) => c.totalChunks).join(" + ")} sections.</p>;
+  // Targeted: we chose to read only the most relevant parts (fast). Say so, quietly.
+  if (kind === "targeted") {
+    const canRetry = incomplete.some((c) => c.note?.startsWith("most relevant"));
+    return (
+      <p className="mt-2 text-xs text-mute">
+        Based on {incomplete.map(part).join("; ")}. “Not found” here means not found in those sections.
+        {canRetry && <> <button onClick={onReadAll} className="text-accent underline">Read every section</button></>}
+      </p>
+    );
+  }
+  if (kind === "full") return <p className="mt-2 text-xs text-mute">Read all {coverage.filter((c) => c.totalChunks > 1).map((c) => c.totalChunks).join(" + ")} sections.</p>;
+  return null;
 }

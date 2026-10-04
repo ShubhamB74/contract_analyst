@@ -110,3 +110,24 @@ export function searchPassages(passages: Passage[], query: string, k = 5): { pas
   });
   return scored.filter((x) => x.score > 0).sort((a, b) => b.score - a.score).slice(0, k);
 }
+
+/** BM25 relevance score of each text for a query (used to pick which sections of a big document to read first). */
+export function rankTexts(texts: string[], query: string): number[] {
+  const terms = queryTerms(query);
+  const tfs = texts.map((t) => { const m = new Map<string, number>(); for (const w of tokens(t)) m.set(w, (m.get(w) ?? 0) + 1); return m; });
+  const lens = tfs.map((m) => [...m.values()].reduce((a, b) => a + b, 0));
+  const N = texts.length;
+  const avg = lens.reduce((a, b) => a + b, 0) / Math.max(N, 1) || 1;
+  const df = new Map<string, number>();
+  for (const t of terms.keys()) df.set(t, tfs.filter((m) => m.has(t)).length);
+  return tfs.map((m, i) => {
+    let s = 0;
+    for (const [t, w] of terms) {
+      const f = m.get(t);
+      if (!f) continue;
+      const idf = Math.log(1 + (N - df.get(t)! + 0.5) / (df.get(t)! + 0.5));
+      s += w * idf * ((f * 2.2) / (f + 1.2 * (0.25 + (0.75 * lens[i]) / avg)));
+    }
+    return s;
+  });
+}

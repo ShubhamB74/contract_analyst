@@ -156,7 +156,7 @@ export async function runAgent(opts: {
   const coverage: Coverage[] = docs.map((d) => {
     const total = getClauses(d).length;
     const read = ctx.seen.get(d.id)?.size ?? 0;
-    return { docId: d.id, totalChunks: total, readChunks: Math.min(read, total), complete: read >= total, note: read >= total ? undefined : "targeted research, not a full read" };
+    return { docId: d.id, totalChunks: total, readChunks: Math.min(read, total), complete: read >= total, targeted: read < total, note: read >= total ? undefined : "targeted research, not a full read" };
   });
   return { raw, coverage, steps, rounds, toolCalls, stoppedBy };
 }
