@@ -2,17 +2,13 @@
 
 Upload a contract (PDF or DOCX), ask questions about it, and get answers backed by quotes that **the server has verified exist in the document**. Click a quote to jump to it, highlighted, in the original file.
 
-**Live demo:** _add your deployed URL_ · **Demo video:** _add link_
-
 ## Screenshots
 
 | Upload & library | Chat with verified quotes |
 |---|---|
-| ![Upload](docs/screenshots/01-upload.png) | ![Chat](docs/screenshots/02-chat-verified.png) |
+| ![Upload](docs/screenshots/01.png) | ![Chat](docs/screenshots/02.png) |
 | **Citation highlighting** | **Version comparison** |
-| ![Highlight](docs/screenshots/03-highlight.png) | ![Compare](docs/screenshots/04-compare.png) |
-
-_(Capture these from the running app. See `docs/SUBMISSION_CHECKLIST.md`.)_
+| ![Highlight](docs/screenshots/03.png) | ![Compare](docs/screenshots/04.png) |
 
 ## What it does
 
@@ -38,12 +34,12 @@ Node 20+. Any OpenAI-compatible provider works (OpenAI, OpenRouter, Gemini's com
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `AI_API_KEY` | provider key (never commit) | none |
+| `AI_API_KEY` | provider key | none |
 | `AI_BASE_URL` | OpenAI-compatible endpoint | `https://openrouter.ai/api/v1` |
 | `AI_MODEL` | model name | `openai/gpt-4o-mini` |
 | `DATA_DIR` | SQLite DB + uploaded files | `./data` |
 | `AI_MAP_MODEL` | optional faster/cheaper model for the per-section step on large documents | same as `AI_MODEL` |
-| `MAP_CONCURRENCY` | parallel section calls (raise if your plan allows, lower if you see rate-limit failures) | `6` |
+| `MAP_CONCURRENCY` | parallel section calls | `6` |
 | `RELEVANT_CHUNKS` | sections read first per document on large documents | `8` |
 | `MAX_UPLOAD_MB` | upload size limit | `25` |
 | `RATE_LIMIT_CHAT` / `_UPLOAD` / `_COMPARE` | requests per 10 min per IP | 40 / 30 / 12 |
@@ -97,13 +93,3 @@ question ─> [small doc]  whole text in one request
 
 `npm test` runs 82 tests: quote verification (whitespace, hyphenation, numbers, repeats, wrong-document attribution), highlight mapping on a real PDF including a page-break split, a 148-page document end to end, relevance-first reading with call counts (retries, full-read fallback), clause alignment on two real PDFs, the comparison job without an AI key, the agent loop against a scripted fake model (malformed/invented/repeated tool calls, round cap, abort), restart recovery, rate limiting and a database migration.
 
-## Project layout
-
-```
-src/app            pages and API routes (documents, chat, comparisons, health)
-src/components     Chat, Workspace, DocumentPane, PdfViewer, HtmlViewer, ChangeCard
-src/lib            quotes, answer, highlight, chunk, retrieve, clauses, diff, compare,
-                   search, tools, agent, jobs, ratelimit, extract, db, repo, prompts
-samples/           demo files        tests/   vitest suites + fixtures
-docs/              DEPLOY, PHASES, NOTE, DEMO_SCRIPT, SUBMISSION_CHECKLIST
-```
